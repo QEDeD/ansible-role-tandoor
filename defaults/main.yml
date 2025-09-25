@@ -143,6 +143,10 @@ tandoor_environment_variable_debug: 0
 # Since that is something some server administrators might not want there the PDF exporter is disabled by default
 tandoor_environment_variable_enable_pdf_export: 0
 tandoor_environment_variable_tandoor_port: 8080
+# OIDC Provider configuration for Tandoor social login
+# https://docs.tandoor.dev/features/authentication/
+tandoor_social_providers: ''
+tandoor_socialaccount_providers: {}
 # Specifies the value of the `X-XSS-Protection` header
 # Stops pages from loading when they detect reflected cross-site scripting (XSS) attacks.
 #
