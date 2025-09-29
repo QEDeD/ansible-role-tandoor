@@ -1,0 +1,52 @@
+---
+- name: Validate OIDC configuration
+  ansible.builtin.assert:
+    that:
+      - not tandoor_oidc_enabled or (tandoor_oidc_apps | length) > 0
+    fail_msg: "tandoor_oidc_enabled is true but tandoor_oidc_apps is empty."
+
+- name: Build OIDC SOCIALACCOUNT_PROVIDERS structure
+  ansible.builtin.set_fact:
+    _tandoor_socialaccount_providers: >-
+      {{
+        {
+          tandoor_oidc_provider: {
+            "OAUTH_PKCE_ENABLED": true,
+            "APPS": tandoor_oidc_apps
+          }
+        }
+        if tandoor_oidc_enabled
+        else {}
+      }}
+
+- name: Build OIDC env lines (as a list)
+  ansible.builtin.set_fact:
+    _tandoor_oidc_env_lines: >-
+      {{
+        [] if not tandoor_oidc_enabled else
+        [
+          "SOCIAL_PROVIDERS=allauth.socialaccount.providers." ~ tandoor_oidc_provider,
+          "SOCIALACCOUNT_PROVIDERS=" ~ (_tandoor_socialaccount_providers | to_json)
+        ]
+        +
+        ([ "PROXY_HEADER=" ~ tandoor_oidc_proxy_header ] if tandoor_oidc_proxy_header else [])
+        +
+        ([ "SOCIAL_DEFAULT_ACCESS=" ~ tandoor_social_default_access ] if tandoor_social_default_access else [])
+        +
+        ([ "SOCIAL_DEFAULT_GROUP=" ~ tandoor_social_default_group ] if tandoor_social_default_group else [])
+      }}
+
+- name: Normalize existing additional env into a list
+  ansible.builtin.set_fact:
+    _tandoor_extra_env_lines: >-
+      {{
+        (tandoor_container_additional_environment_variables | default('')).splitlines()
+        if tandoor_container_additional_environment_variables is defined else []
+      }}
+
+- name: Final additional env string (back-compat)
+  ansible.builtin.set_fact:
+    tandoor_container_additional_environment_variables: >-
+      {{
+        (_tandoor_extra_env_lines + _tandoor_oidc_env_lines) | join('\n')
+      }}

@@ -21,6 +21,9 @@
     - "{{ tandoor_staticfiles_path }}"
     - "{{ tandoor_mediafiles_path }}"
 
+- name: OIDC environment generation
+  ansible.builtin.include_tasks: "{{ role_path }}/tasks/oidc.yml"
+
 - name: Ensure tandoor support files installed
   ansible.builtin.template:
     src: "{{ role_path }}/templates/{{ item }}.j2"
