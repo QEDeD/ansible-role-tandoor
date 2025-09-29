@@ -100,6 +100,19 @@ tandoor_container_labels_additional_labels: ''
 # tandoor_container_additional_environment_variables: |
 #   VAR=1
 #   ANOTHER=value
+
+# Controls whether OIDC-based social login is configured.
+tandoor_oidc_enabled: false
+# Name of the django-allauth provider to use.
+tandoor_oidc_provider: "openid_connect"
+# List of provider applications to expose for login.
+tandoor_oidc_apps: []
+# Header used to determine the original request scheme when behind a proxy.
+tandoor_oidc_proxy_header: "X-Forwarded-Proto"
+# Default access level assigned to newly created social users.
+tandoor_social_default_access: null
+# Default group assigned to newly created social users.
+tandoor_social_default_group: null
 tandoor_container_additional_environment_variables: ''
 
 # A list of additional "mounts" to be mounted in the container.
