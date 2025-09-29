@@ -1,0 +1,19 @@
+---
+- name: Validate additional environment variable type for OIDC support
+  ansible.builtin.assert:
+    that:
+      - tandoor_container_additional_environment_variables is string
+    fail_msg: >-
+      The tandoor_container_additional_environment_variables variable must be a string or null when defined.
+  when:
+    - tandoor_container_additional_environment_variables is defined
+    - tandoor_container_additional_environment_variables is not none
+
+- name: Merge generated OIDC environment variables with user supplied ones
+  ansible.builtin.set_fact:
+    tandoor_container_additional_environment_variables: |-
+      {%- set _existing_value = tandoor_container_additional_environment_variables | default('', true) -%}
+      {%- set _existing_lines = _existing_value.splitlines() if _existing_value else [] -%}
+      {%- set _combined_lines = _existing_lines + (tandoor_oidc_environment_variables_lines | default([], true)) -%}
+      {{ (_combined_lines | join('\n')) ~ ('\n' if _combined_lines else '') }}
+  when: (tandoor_oidc_environment_variables_lines | default([], true)) | length > 0
