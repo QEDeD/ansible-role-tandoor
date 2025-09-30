@@ -40,7 +40,11 @@
   ansible.builtin.set_fact:
     _tandoor_extra_env_lines: >-
       {{
-        (tandoor_container_additional_environment_variables | default('')).splitlines()
+        (
+          tandoor_container_additional_environment_variables
+          | default('', true)
+          | string
+        ).splitlines()
         if tandoor_container_additional_environment_variables is defined else []
       }}
 
@@ -48,5 +52,5 @@
   ansible.builtin.set_fact:
     tandoor_container_additional_environment_variables: >-
       {{
-        (_tandoor_extra_env_lines + _tandoor_oidc_env_lines) | join('\n')
+        (_tandoor_extra_env_lines + _tandoor_oidc_env_lines) | join("\n")
       }}

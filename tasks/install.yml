@@ -24,16 +24,21 @@
 - name: OIDC environment generation
   ansible.builtin.include_tasks: "{{ role_path }}/tasks/oidc.yml"
 
-- name: Ensure tandoor support files installed
+- name: Ensure tandoor env file installed
   ansible.builtin.template:
-    src: "{{ role_path }}/templates/{{ item }}.j2"
-    dest: "{{ tandoor_base_path }}/{{ item }}"
+    src: "{{ role_path }}/templates/env.j2"
+    dest: "{{ tandoor_base_path }}/env"
     mode: 0640
     owner: "{{ tandoor_uid }}"
     group: "{{ tandoor_gid }}"
-  with_items:
-    - env
-    - labels
+
+- name: Ensure tandoor labels file installed
+  ansible.builtin.template:
+    src: "{{ role_path }}/templates/labels.j2"
+    dest: "{{ tandoor_base_path }}/labels"
+    mode: 0640
+    owner: "{{ tandoor_uid }}"
+    group: "{{ tandoor_gid }}"
 
 - name: Create nginx config if tandoor_path_prefix is set
   block:
