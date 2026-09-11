@@ -5,11 +5,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 ---
-- name: Check existence of Tandoor systemd service
-  ansible.builtin.stat:
-    path: "{{ devture_systemd_docker_base_systemd_path }}/{{ tandoor_identifier }}.service"
-  register: tandoor_service_stat
-
 # The `-api` and `-frontend` services are leftovers from version 1.x, which ran
 # Tandoor as two containers. Every installation made since then has the single
 # service only, and asking systemd to stop a unit it has never heard of is an
@@ -23,69 +18,85 @@
     - "{{ tandoor_identifier }}"
   register: tandoor_stoppable_service_stat
 
-- name: Uninstall Tandoor systemd services and files
-  when: tandoor_service_stat.stat.exists | bool
+# Cleanup must also finish after an earlier run removed the current unit.
+- name: Ensure Tandoor systemd services are stopped
+  ansible.builtin.service:
+    name: "{{ item.item }}.service"
+    state: stopped
+    enabled: false
+    daemon_reload: true
+  loop: "{{ tandoor_stoppable_service_stat.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.stat.exists
+
+- name: Ensure Tandoor systemd services do not exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - "{{ devture_systemd_docker_base_systemd_path }}/{{ tandoor_api_identifier }}.service"
+    - "{{ devture_systemd_docker_base_systemd_path }}/{{ tandoor_frontend_identifier }}.service"
+    - "{{ devture_systemd_docker_base_systemd_path }}/{{ tandoor_identifier }}.service"
+
+- name: Ensure Tandoor support files do not exist
+  ansible.builtin.file:
+    path: "{{ tandoor_base_path }}/{{ item }}"
+    state: absent
+  with_items:
+    - env
+    - labels
+
+- name: Ensure Tandoor local data path does not exist if empty
+  ansible.builtin.command:
+    cmd: "rmdir {{ tandoor_data_path }}"
+  register: tandoor_data_path_deletion_result
+  changed_when: tandoor_data_path_deletion_result.rc == 0
+  failed_when: false
+
+- name: Ensure Tandoor base path does not exist if empty
+  ansible.builtin.command:
+    cmd: "rmdir {{ tandoor_base_path }}"
+  register: tandoor_base_path_deletion_result
+  changed_when: tandoor_base_path_deletion_result.rc == 0
+  failed_when: false
+
+- name: Ensure Tandoor container network does not exist
+  when: tandoor_container_network_deletion_enabled
   block:
-    - name: Ensure Tandoor systemd services are stopped
-      ansible.builtin.service:
-        name: "{{ item.item }}.service"
-        state: stopped
-        enabled: false
-        daemon_reload: true
-      loop: "{{ tandoor_stoppable_service_stat.results }}"
-      loop_control:
-        label: "{{ item.item }}"
-      when: item.stat.exists
-
-    - name: Ensure Tandoor systemd services do not exist
-      ansible.builtin.file:
-        path: "{{ item }}"
+    - name: Ensure Tandoor container network does not exist via community.docker.docker_network
+      when: devture_systemd_docker_base_container_network_creation_method == 'ansible-module'
+      community.docker.docker_network:
+        name: "{{ tandoor_container_network }}"
         state: absent
-      with_items:
-        - "{{ devture_systemd_docker_base_systemd_path }}/{{ tandoor_api_identifier }}.service"
-        - "{{ devture_systemd_docker_base_systemd_path }}/{{ tandoor_frontend_identifier }}.service"
-        - "{{ devture_systemd_docker_base_systemd_path }}/{{ tandoor_identifier }}.service"
+      register: tandoor_network_deletion_result
 
-    - name: Ensure Tandoor support files do not exist
-      ansible.builtin.file:
-        path: "{{ tandoor_base_path }}/{{ item }}"
-        state: absent
-      with_items:
-        - env
-        - labels
-
-    - name: Ensure Tandoor local data path does not exist if empty
+    - name: Check existence of Tandoor container network via ansible.builtin.command
+      when: devture_systemd_docker_base_container_network_creation_method == 'command'
       ansible.builtin.command:
-        cmd: "rmdir {{ tandoor_data_path }}"
-      register: tandoor_data_path_deletion_result
-      changed_when: tandoor_data_path_deletion_result.rc == 0
-      failed_when: false
+        argv:
+          - "{{ devture_systemd_docker_base_host_command_docker }}"
+          - network
+          - ls
+          - --filter
+          - "name={{ tandoor_container_network }}"
+          - --format
+          - "{{ '{{.Name}}' }}"
+      register: tandoor_network_list_result
+      changed_when: false
 
-    - name: Ensure Tandoor base path does not exist if empty
+    - name: Ensure Tandoor container network does not exist via ansible.builtin.command
+      when:
+        - devture_systemd_docker_base_container_network_creation_method == 'command'
+        - tandoor_container_network in tandoor_network_list_result.stdout_lines
       ansible.builtin.command:
-        cmd: "rmdir {{ tandoor_base_path }}"
-      register: tandoor_base_path_deletion_result
-      changed_when: tandoor_base_path_deletion_result.rc == 0
-      failed_when: false
-
-    - name: Ensure Tandoor container network does not exist
-      when: tandoor_container_network_deletion_enabled
-      block:
-        - name: Ensure Tandoor container network does not exist via community.docker.docker_network
-          when: devture_systemd_docker_base_container_network_creation_method == 'ansible-module'
-          community.docker.docker_network:
-            name: "{{ tandoor_container_network }}"
-            state: absent
-          register: tandoor_network_deletion_result
-
-        - name: Ensure Tandoor container network does not exist via ansible.builtin.command
-          when: devture_systemd_docker_base_container_network_creation_method == 'command'
-          ansible.builtin.command:
-            cmd: >-
-              {{ devture_systemd_docker_base_host_command_docker }} network rm
-              {{ tandoor_container_network }}
-          register: tandoor_network_deletion_result
-          changed_when: tandoor_container_network in tandoor_network_deletion_result.stdout
+        argv:
+          - "{{ devture_systemd_docker_base_host_command_docker }}"
+          - network
+          - rm
+          - "{{ tandoor_container_network }}"
+      register: tandoor_network_deletion_result
+      changed_when: tandoor_container_network in tandoor_network_deletion_result.stdout
 
 - name: Check existence of Tandoor local data path
   ansible.builtin.stat:
