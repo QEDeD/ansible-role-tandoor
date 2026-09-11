@@ -29,6 +29,8 @@
     - "{{ tandoor_mediafiles_path }}"
 
 - name: Ensure Tandoor support files installed
+  no_log: true
+  diff: false
   ansible.builtin.template:
     src: "{{ role_path }}/templates/{{ item }}.j2"
     dest: "{{ tandoor_base_path }}/{{ item }}"
