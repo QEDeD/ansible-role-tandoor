@@ -133,11 +133,14 @@
 
     - name: Write database and media sentinels through Tandoor
       ansible.builtin.command:
-        argv: "{{ tandoor_verify_python + [tandoor_persistence_seed_script] }}"
+        argv: "{{ tandoor_verify_python + [tandoor_persistence_seed_script, tandoor_uid | string, tandoor_gid | string] }}"
       vars:
         tandoor_persistence_seed_script: |
           import os
           import uuid
+          import sys
+          assert os.getuid() == int(sys.argv[1]), "Unexpected application UID"
+          assert os.getgid() == int(sys.argv[2]), "Unexpected application GID"
           from pathlib import Path
           os.environ.setdefault("DJANGO_SETTINGS_MODULE", "recipes.settings")
           import django

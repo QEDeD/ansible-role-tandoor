@@ -36,8 +36,8 @@ provisioner:
 
         # Variables for Tandoor
         tandoor_identifier: tandoor
-        tandoor_uid: 0
-        tandoor_gid: 0
+        tandoor_uid: 1000
+        tandoor_gid: 1000
         tandoor_scheme: http
         # Deliberately not localhost: a value nothing else could have supplied
         # is what makes finding it in ALLOWED_HOSTS mean the role's env file
