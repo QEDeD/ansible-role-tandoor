@@ -14,6 +14,33 @@
     - { "old": "tandoor_http_header_content_permission_policy", "new": "tandoor_http_header_permissions_policy" }
     - { "old": "tandoor_container_image_force_pull", "new": "<removed> (the new community.docker.docker_image_pull module handles this natively)" }
 
+- name: (Deprecation) Catch removed Tandoor version 1.x container settings
+  ansible.builtin.fail:
+    msg: >-
+      Your configuration defines `{{ item }}`, which is no longer used since Tandoor switched to one container.
+      Remove this setting to use the current defaults, or configure the desired image and networks with
+      `tandoor_container_image` and `tandoor_container_additional_networks_custom`.
+      Review the values for the current Tandoor version before migrating them; the old API and frontend
+      images and network settings cannot be combined automatically.
+  when: "lookup('ansible.builtin.varnames', ('^' + item + '$'), wantlist=True) | length > 0"
+  loop:
+    - tandoor_api_version
+    - tandoor_api_container_image
+    - tandoor_api_container_image_tag
+    - tandoor_api_container_image_registry_prefix
+    - tandoor_api_container_image_force_pull
+    - tandoor_api_container_additional_networks
+    - tandoor_api_container_additional_networks_auto
+    - tandoor_api_container_additional_networks_custom
+    - tandoor_frontend_version
+    - tandoor_frontend_container_image
+    - tandoor_frontend_container_image_tag
+    - tandoor_frontend_container_image_registry_prefix
+    - tandoor_frontend_container_image_force_pull
+    - tandoor_frontend_container_additional_networks
+    - tandoor_frontend_container_additional_networks_auto
+    - tandoor_frontend_container_additional_networks_custom
+
 - name: Fail if required Tandoor settings not defined
   ansible.builtin.fail:
     msg: >-
