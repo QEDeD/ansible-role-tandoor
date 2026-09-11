@@ -74,14 +74,10 @@
     - name: Check existence of Tandoor container network via ansible.builtin.command
       when: devture_systemd_docker_base_container_network_creation_method == 'command'
       ansible.builtin.command:
-        argv:
-          - "{{ devture_systemd_docker_base_host_command_docker }}"
-          - network
-          - ls
-          - --filter
-          - "name={{ tandoor_container_network }}"
-          - --format
-          - "{{ '{{.Name}}' }}"
+        cmd: >-
+          {{ devture_systemd_docker_base_host_command_docker }} network ls
+          --filter {{ ('name=' ~ tandoor_container_network) | quote }}
+          --format {{ '{{.Name}}' | quote }}
       register: tandoor_network_list_result
       changed_when: false
 
@@ -90,11 +86,9 @@
         - devture_systemd_docker_base_container_network_creation_method == 'command'
         - tandoor_container_network in tandoor_network_list_result.stdout_lines
       ansible.builtin.command:
-        argv:
-          - "{{ devture_systemd_docker_base_host_command_docker }}"
-          - network
-          - rm
-          - "{{ tandoor_container_network }}"
+        cmd: >-
+          {{ devture_systemd_docker_base_host_command_docker }} network rm
+          {{ tandoor_container_network | quote }}
       register: tandoor_network_deletion_result
       changed_when: tandoor_container_network in tandoor_network_deletion_result.stdout
 
