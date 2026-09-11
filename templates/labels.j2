@@ -62,6 +62,10 @@ traefik.http.routers.{{ tandoor_identifier }}.tls.certResolver={{ tandoor_contai
 traefik.http.services.{{ tandoor_identifier }}.loadbalancer.server.port={{ tandoor_container_http_port }}
 {% endif %}
 
+{% if tandoor_container_labels_additional_labels is string %}
+{{ tandoor_container_labels_additional_labels }}
+{% else %}
 {% for arg in tandoor_container_labels_additional_labels %}
 {{ arg }}
 {% endfor %}
+{% endif %}

@@ -114,7 +114,8 @@ tandoor_container_labels_traefik_additional_response_headers_auto: |
   }}
 tandoor_container_labels_traefik_additional_response_headers_custom: {}
 
-# tandoor_container_labels_additional_labels contains a multiline string with additional labels to add to the container label file.
+# tandoor_container_labels_additional_labels contains a list of additional labels to add to the container label file.
+# A multiline string override is also supported for compatibility with older configurations.
 # See `../templates/labels.j2` for details.
 # To add your own custom labels, use `tandoor_container_labels_additional_labels_custom`
 #
