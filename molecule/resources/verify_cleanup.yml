@@ -1,0 +1,68 @@
+# SPDX-FileCopyrightText: 2026 QEDeD
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+---
+- name: Verify the cleanup command against controlled Docker responses
+  hosts: localhost
+  connection: local
+  become: false
+  gather_facts: false
+  vars:
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+    tandoor_identifier: molecule-tandoor
+    tandoor_container_cleanup_timeout_seconds: 1
+    tandoor_container_cleanup_retry_delay_seconds: 0
+    tandoor_container_stop_grace_time_seconds: 7
+    devture_systemd_docker_base_host_command_docker: "/bin/sh {{ (tandoor_cleanup_fixture.path ~ '/docker.sh') | quote }}"
+  tasks:
+    - name: Read the actual cleanup command from role defaults
+      ansible.builtin.include_vars:
+        file: ../../defaults/main.yml
+        name: tandoor_cleanup_defaults
+
+    - name: Create a temporary cleanup fixture directory
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: tandoor-cleanup-test-
+      register: tandoor_cleanup_fixture
+
+    - name: Exercise the actual role command without invoking Docker
+      block:
+        - name: Install the controlled Docker responses
+          ansible.builtin.copy:
+            src: fixtures/cleanup-docker.sh
+            dest: "{{ tandoor_cleanup_fixture.path }}/docker.sh"
+            mode: "0600"
+
+        - name: Run cleanup with each controlled response
+          ansible.builtin.command:
+            argv:
+              - /bin/sh
+              - -c
+              - "{{ tandoor_cleanup_defaults.tandoor_container_cleanup_command }}"
+          environment:
+            TANDOOR_CLEANUP_CASE: "{{ item }}"
+          loop:
+            - absent
+            - query-failure
+            - present
+          register: tandoor_cleanup_results
+          failed_when: false
+          changed_when: false
+          timeout: 10
+
+        - name: Assert that only confirmed exact-name absence succeeds
+          ansible.builtin.assert:
+            that:
+              - tandoor_cleanup_results.results[0].rc == 0
+              - tandoor_cleanup_results.results[1].rc != 0
+              - "'Failed to list Docker containers' in tandoor_cleanup_results.results[1].stderr"
+              - tandoor_cleanup_results.results[2].rc != 0
+              - "'after 1 attempts' in tandoor_cleanup_results.results[2].stderr"
+            fail_msg: "Unexpected cleanup results: {{ tandoor_cleanup_results.results }}"
+      always:
+        - name: Remove the temporary cleanup fixture directory
+          ansible.builtin.file:
+            path: "{{ tandoor_cleanup_fixture.path }}"
+            state: absent

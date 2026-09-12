@@ -46,6 +46,10 @@ provisioner:
         # This scenario is the one that exercises the Traefik label file.
         # The `web` entrypoint keeps TLS (and a certificate resolver that has
         # nothing to resolve against here) out of the labels.
+        # Preserve the multiline scalar interface used before the rewrite.
+        tandoor_container_labels_additional_labels: |
+          molecule.example.one=1
+          molecule.example.two=two words
         tandoor_container_labels_traefik_enabled: true
         tandoor_container_labels_traefik_entrypoints: web
         tandoor_container_http_port: 80
