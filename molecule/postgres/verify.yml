@@ -37,6 +37,13 @@
     tandoor_verify_latest_migration_sql: >-
       SELECT app || '.' || name FROM django_migrations ORDER BY id DESC LIMIT 1
 
+    tandoor_verify_python:
+      - docker
+      - exec
+      - "{{ tandoor_identifier }}"
+      - /opt/recipes/venv/bin/python
+      - -c
+
   tasks:
     - name: Run the checks shared by all Tandoor scenarios
       ansible.builtin.include_tasks:
@@ -114,6 +121,89 @@
           ({{ tandoor_labels_lines | select('match', '^traefik[.]') | list }})
           even though `tandoor_container_labels_traefik_enabled` is false
         success_msg: "No Traefik label was written while Traefik labels are turned off"
+
+    # Fresh migrations do not prove that application data survives replacement.
+    # Write through Django's own connection and media path, then read through
+    # the replacement container without recreating either sentinel.
+    - name: Record the Tandoor container before replacement
+      ansible.builtin.command:
+        argv: [docker, inspect, --format, "{{ '{{.Id}}' }}", "{{ tandoor_identifier }}"]
+      register: tandoor_container_before
+      changed_when: false
+
+    - name: Write database and media sentinels through Tandoor
+      ansible.builtin.command:
+        argv: "{{ tandoor_verify_python + [tandoor_persistence_seed_script, tandoor_uid | string, tandoor_gid | string] }}"
+      vars:
+        tandoor_persistence_seed_script: |
+          import os
+          import uuid
+          import sys
+          assert os.getuid() == int(sys.argv[1]), "Unexpected application UID"
+          assert os.getgid() == int(sys.argv[2]), "Unexpected application GID"
+          from pathlib import Path
+          os.environ.setdefault("DJANGO_SETTINGS_MODULE", "recipes.settings")
+          import django
+          django.setup()
+          from django.conf import settings
+          from django.db import connection
+          assert connection.vendor == "postgresql", "Tandoor is not using PostgreSQL"
+          token = str(uuid.uuid4())
+          with connection.cursor() as cursor:
+              cursor.execute("CREATE TABLE IF NOT EXISTS molecule_tandoor_persistence (id integer PRIMARY KEY, token text NOT NULL)")
+              cursor.execute("INSERT INTO molecule_tandoor_persistence VALUES (1, %s) ON CONFLICT (id) DO UPDATE SET token = EXCLUDED.token", [token])
+          (Path(settings.MEDIA_ROOT) / "molecule-persistence-sentinel").write_text(token)
+          print(token)
+      register: tandoor_persistence_seed
+      changed_when: true
+
+    - name: Replace the Tandoor container through its systemd service
+      ansible.builtin.systemd_service:
+        name: "{{ tandoor_identifier }}.service"
+        state: restarted
+
+    - name: Wait for the replacement Tandoor to answer
+      ansible.builtin.uri:
+        url: "{{ tandoor_verify_url }}/"
+        follow_redirects: none
+        status_code: [302]
+      register: tandoor_replacement_response
+      until: >-
+        tandoor_replacement_response.status | default(0) == 302
+        and tandoor_replacement_response.location | default('') in ['/setup/', tandoor_verify_url ~ '/setup/']
+      retries: 60
+      delay: 5
+
+    - name: Record the replacement Tandoor container
+      ansible.builtin.command:
+        argv: [docker, inspect, --format, "{{ '{{.Id}}' }}", "{{ tandoor_identifier }}"]
+      register: tandoor_container_after
+      changed_when: false
+
+    - name: Assert that the service replaced the application container
+      ansible.builtin.assert:
+        that: tandoor_container_before.stdout | trim != tandoor_container_after.stdout | trim
+        fail_msg: "The persistence check requires a replacement container, but its ID did not change"
+
+    - name: Verify that the replacement Tandoor can read the original data
+      ansible.builtin.command:
+        argv: "{{ tandoor_verify_python + [tandoor_persistence_verify_script, tandoor_persistence_seed.stdout_lines | last] }}"
+      vars:
+        tandoor_persistence_verify_script: |
+          import os
+          import sys
+          from pathlib import Path
+          os.environ.setdefault("DJANGO_SETTINGS_MODULE", "recipes.settings")
+          import django
+          django.setup()
+          from django.conf import settings
+          from django.db import connection
+          assert connection.vendor == "postgresql", "Replacement Tandoor is not using PostgreSQL"
+          with connection.cursor() as cursor:
+              cursor.execute("SELECT token FROM molecule_tandoor_persistence WHERE id = 1")
+              assert cursor.fetchone() == (sys.argv[1],), "Database sentinel did not survive container replacement"
+          assert (Path(settings.MEDIA_ROOT) / "molecule-persistence-sentinel").read_text() == sys.argv[1], "Media sentinel did not survive container replacement"
+      changed_when: false
 
     - name: Show the verification summary
       ansible.builtin.debug:
