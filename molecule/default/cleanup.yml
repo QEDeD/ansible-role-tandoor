@@ -18,8 +18,15 @@
 
   vars:
     tandoor_enabled: false
+    tandoor_molecule_retained_file: "/{{ tandoor_identifier }}/data/mediafiles/uninstall-sentinel"
 
   tasks:
+    - name: Create data that uninstalling must preserve
+      ansible.builtin.copy:
+        content: "retain across uninstall\n"
+        dest: "{{ tandoor_molecule_retained_file }}"
+        mode: "0640"
+
     - name: Include roles for uninstalling Tandoor
       ansible.builtin.include_role:
         name: "{{ role_name }}"
@@ -59,4 +66,46 @@
       ansible.builtin.assert:
         that: tandoor_uninstalled_container.stdout | trim | length == 0
         fail_msg: "The `{{ tandoor_identifier }}` container is still running after uninstalling"
-        success_msg: "The `{{ tandoor_identifier }}` container is gone"
+        success_msg: "The `{{ tandoor_identifier }}` container is no longer running"
+
+    # An interrupted uninstall can leave support files after removing the unit.
+    # Repeating it must finish cleanup even though there is no service to stop.
+    - name: Recreate support files left by an interrupted uninstall
+      ansible.builtin.copy:
+        content: "uninstall-sentinel\n"
+        dest: "{{ tandoor_base_path }}/{{ item }}"
+        mode: "0640"
+      loop:
+        - env
+        - labels
+
+    - name: Finish interrupted cleanup and repeat it with nothing left to remove
+      ansible.builtin.include_role:
+        name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') | basename }}"
+      # Exercise the command fallback with an already removed network as well.
+      vars:
+        devture_systemd_docker_base_container_network_creation_method: command
+      loop: [first, repeated]
+      loop_control:
+        loop_var: tandoor_molecule_cleanup_attempt
+
+    - name: Check that repeated cleanup removed the remaining support files
+      ansible.builtin.stat:
+        path: "{{ tandoor_base_path }}/{{ item }}"
+      loop:
+        - env
+        - labels
+      register: tandoor_repeated_cleanup_stat
+
+    - name: Assert that no support files remain after repeated cleanup
+      ansible.builtin.assert:
+        that: tandoor_repeated_cleanup_stat.results | selectattr('stat.exists') | list | length == 0
+
+    - name: Read the data retained after normal and repeated uninstall
+      ansible.builtin.slurp:
+        src: "{{ tandoor_molecule_retained_file }}"
+      register: tandoor_retained_data
+
+    - name: Assert that uninstalling preserved the original data
+      ansible.builtin.assert:
+        that: (tandoor_retained_data.content | b64decode) == 'retain across uninstall\n'
