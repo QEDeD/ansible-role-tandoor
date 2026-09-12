@@ -16,6 +16,8 @@ set -euo pipefail
 
 script_under_test="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/compute-next-tag.sh"
 
+workflow_under_test="$(dirname -- "$script_under_test")/../.github/workflows/autotag.yml"
+
 failures=0
 workdir=''
 
@@ -155,6 +157,38 @@ expect 'a revert' '' "$(merge "$revert_version")"
 scenario 'Reverting to an already released version, with a change'
 merge "$bump_version" > /dev/null
 expect 'a revert' v2.6.13-2 "$(merge "$revert_version && $edit_task")"
+
+# Delayed work must not give an older tree a higher release suffix.
+scenario 'A delayed run after a newer commit was released'
+earlier_commit="$(git rev-parse HEAD)"
+expect 'newer task edit' v2.6.13-2 "$(merge "$edit_task")"
+git checkout -q --detach "$earlier_commit"
+if bin/compute-next-tag.sh > tag-output 2> tag-error; then
+	expect 'older checkout is rejected' failure success
+else
+	expect 'older checkout emits no tag' '' "$(cat tag-output)"
+	expect 'older checkout explains rejection' true "$(grep -q 'not an ancestor of HEAD' tag-error && echo true)"
+fi
+git checkout -q main
+expect 'latest main already released' '' "$(bin/compute-next-tag.sh 2>/dev/null)"
+
+scenario 'A release tag from divergent history'
+git checkout -q -b divergent
+merge "$edit_task" > /dev/null
+git checkout -q main
+if bin/compute-next-tag.sh > tag-output 2> tag-error; then
+	expect 'divergent release is rejected' failure success
+else
+	expect 'divergent checkout emits no tag' '' "$(cat tag-output)"
+	expect 'divergent checkout explains rejection' true "$(grep -q 'not an ancestor of HEAD' tag-error && echo true)"
+fi
+
+# The graph tests above cannot execute GitHub's scheduler. Protect the small
+# workflow contract that selects the revision and serializes its publication.
+expect 'only upstream main events may release' true "$(grep -Fxq "    if: \${{ !github.event.repository.fork && github.ref == 'refs/heads/main' }}" "$workflow_under_test" && echo true)"
+expect 'checkout follows main instead of the event revision' true "$(grep -Eq '^          ref: main$' "$workflow_under_test" && echo true)"
+expect 'tag computation and push remain serialized' true "$(grep -Eq '^      group: autotag$' "$workflow_under_test" && echo true)"
+expect 'a running publication is not cancelled' true "$(grep -Eq '^      cancel-in-progress: false$' "$workflow_under_test" && echo true)"
 
 if [ "$failures" -gt 0 ]; then
 	echo >&2 "$failures scenario(s) behaved unexpectedly"

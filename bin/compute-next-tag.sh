@@ -74,6 +74,12 @@ fi
 
 previous_tag="${tag_prefix}${last_release}"
 
+# A delayed or divergent checkout must not supersede a newer release.
+if ! git merge-base --is-ancestor "$previous_tag" HEAD; then
+	echo >&2 "Refusing to release: $previous_tag is not an ancestor of HEAD"
+	exit 1
+fi
+
 if git diff --quiet "$previous_tag" HEAD -- "${role_defining_paths[@]}"; then
 	echo >&2 "Nothing affecting the role has changed since $previous_tag"
 	exit 0

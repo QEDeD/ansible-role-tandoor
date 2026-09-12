@@ -17,7 +17,7 @@ repos:
         entry: bash bin/test-compute-next-tag.sh
         language: system
         pass_filenames: false
-        files: '^(bin/compute-next-tag[.]sh|bin/test-compute-next-tag[.]sh|defaults/main[.]yml)$'
+        files: '^(bin/compute-next-tag[.]sh|bin/test-compute-next-tag[.]sh|defaults/main[.]yml|[.]github/workflows/autotag[.]yml)$'
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:

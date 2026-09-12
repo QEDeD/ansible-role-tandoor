@@ -26,12 +26,11 @@ jobs:
     # code. The `mother-of-all-self-hosting` fork, through which contributions
     # to this role are staged, is exactly that case: it is missing the
     # v2.6.13-0 and v2.6.13-1 tags that upstream carries.
-    if: ${{ !github.event.repository.fork }}
+    if: ${{ !github.event.repository.fork && github.ref == 'refs/heads/main' }}
 
-    # Tag numbers are derived from the tags that already exist, so two commits
-    # landing close together must not be looked at simultaneously - they would
-    # both compute the same number. Runs are queued rather than cancelled, so
-    # that every commit deserving a release still gets one.
+    # Serialize tag computation and publication. Pending runs may be replaced
+    # or arrive out of commit order, so each run checks the latest main rather
+    # than its triggering commit. Intermediate commits may share one release.
     concurrency:
       group: autotag
       cancel-in-progress: false
@@ -41,6 +40,7 @@ jobs:
       - name: Check out
         uses: actions/checkout@v7.0.0
         with:
+          ref: main
           fetch-depth: 0
 
       - name: Determine the next tag
