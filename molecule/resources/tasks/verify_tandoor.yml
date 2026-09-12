@@ -27,19 +27,6 @@
   failed_when: false
   changed_when: false
 
-# The unit carries `Restart=always`, which means a container that dies seconds
-# into every boot still leaves the unit `active` indefinitely. The restart
-# counter is what makes "the service is up" mean anything here.
-- name: Assert that the Tandoor service is up and has not been restarting
-  ansible.builtin.assert:
-    that:
-      - tandoor_service.status.ActiveState | default('') == 'active'
-      - tandoor_service.status.NRestarts | int == 0
-    fail_msg: >-
-      tandoor.service is {{ tandoor_service.status.ActiveState | default('not reporting a state') }}
-      after {{ tandoor_service.status.NRestarts | default('an unknown number of') }} restart(s)
-    success_msg: "tandoor.service is active and has not restarted"
-
 - name: Wait for Tandoor to answer at the hostname the role configured
   ansible.builtin.uri:
     url: "{{ tandoor_verify_url }}/"
@@ -85,6 +72,27 @@
       {{ ('-> ' ~ tandoor_root.location) if tandoor_root.location is defined else '' }},
       rather than a 302 to /setup/
     success_msg: "Tandoor redirects a first-time visitor to /setup/"
+
+# Read again after the HTTP wait: a restart followed by recovery during that
+# interval must not pass using the earlier active-state snapshot.
+- name: Read the Tandoor service state after HTTP readiness
+  ansible.builtin.systemd_service:
+    name: tandoor.service
+  register: tandoor_service
+  changed_when: false
+
+# The unit carries `Restart=always`, which means a container that dies seconds
+# into every boot still leaves the unit `active` indefinitely. The restart
+# counter is what makes "the service is up" mean anything here.
+- name: Assert that the Tandoor service is up and has not been restarting
+  ansible.builtin.assert:
+    that:
+      - tandoor_service.status.ActiveState | default('') == 'active'
+      - tandoor_service.status.NRestarts | int == 0
+    fail_msg: >-
+      tandoor.service is {{ tandoor_service.status.ActiveState | default('not reporting a state') }}
+      after {{ tandoor_service.status.NRestarts | default('an unknown number of') }} restart(s)
+    success_msg: "tandoor.service is active and has not restarted"
 
 # The counterpart of the check above, and the one that makes it mean something.
 # `ALLOWED_HOSTS` is rendered by the role's env template; if that env file did
