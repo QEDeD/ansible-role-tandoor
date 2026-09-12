@@ -98,28 +98,25 @@
     - "{{ tandoor_frontend_identifier }}"
   register: tandoor_v1_service_stat
 
-- name: Uninstall Tandoor version 1.x systemd services and files
-  when: tandoor_v1_service_stat.results | selectattr('stat.exists') | list | length > 0
-  block:
-    - name: Ensure Tandoor version 1.x systemd services are stopped
-      ansible.builtin.service:
-        name: "{{ item.item }}.service"
-        state: stopped
-        enabled: false
-        daemon_reload: true
-      loop: "{{ tandoor_v1_service_stat.results }}"
-      when: item.stat.exists
+- name: Ensure Tandoor version 1.x systemd services are stopped
+  ansible.builtin.service:
+    name: "{{ item.item }}.service"
+    state: stopped
+    enabled: false
+    daemon_reload: true
+  loop: "{{ tandoor_v1_service_stat.results }}"
+  when: item.stat.exists
 
-    - name: Ensure Tandoor version 1.x files do not exist
-      ansible.builtin.file:
-        path: "{{ item }}"
-        state: absent
-      with_items:
-        - "{{ devture_systemd_docker_base_systemd_path }}/{{ tandoor_api_identifier }}.service"
-        - "{{ devture_systemd_docker_base_systemd_path }}/{{ tandoor_frontend_identifier }}.service"
-        - "{{ tandoor_base_path }}/labels-api"
-        - "{{ tandoor_base_path }}/labels-frontend"
-        - "{{ tandoor_data_path }}/nginx"
+- name: Ensure Tandoor version 1.x files do not exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - "{{ devture_systemd_docker_base_systemd_path }}/{{ tandoor_api_identifier }}.service"
+    - "{{ devture_systemd_docker_base_systemd_path }}/{{ tandoor_frontend_identifier }}.service"
+    - "{{ tandoor_base_path }}/labels-api"
+    - "{{ tandoor_base_path }}/labels-frontend"
+    - "{{ tandoor_data_path }}/nginx"
 
 - name: Determine whether Tandoor needs a restart
   ansible.builtin.set_fact:

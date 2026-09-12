@@ -96,3 +96,6 @@
           - "version: {{ tandoor_reported_version }}"
           - "sqlite ({{ tandoor_verify_sqlite_path }}): {{ tandoor_sqlite_migrations.stdout | trim }} migrations"
           - "traefik label lines: {{ tandoor_labels_lines | length }}"
+
+- name: Verify cleanup failure classification without a Docker daemon
+  ansible.builtin.import_playbook: ../resources/verify_cleanup.yml

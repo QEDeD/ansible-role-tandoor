@@ -46,6 +46,10 @@ provisioner:
         # This scenario is the one that checks that no Traefik label is written
         # while Traefik labels are turned off.
         tandoor_container_labels_traefik_enabled: false
+        # Caller labels remain present when generated Traefik labels are off.
+        tandoor_container_labels_additional_labels_custom:
+          - molecule.example.one=1
+          - molecule.example.two=two words
         # Deliberately not the default of 80, so that reaching Tandoor at all
         # proves `tandoor_container_http_port` reached the webserver inside the
         # container, and did not merely get published and labelled.

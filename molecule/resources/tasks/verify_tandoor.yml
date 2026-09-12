@@ -171,3 +171,10 @@
 - name: Remember the lines of the container label file
   ansible.builtin.set_fact:
     tandoor_labels_lines: "{{ (tandoor_labels_file.content | b64decode).splitlines() | map('trim') | select() | list }}"
+
+- name: Assert that the role preserved the caller's complete label lines
+  ansible.builtin.assert:
+    that:
+      - "'molecule.example.one=1' in tandoor_labels_lines"
+      - "'molecule.example.two=two words' in tandoor_labels_lines"
+    fail_msg: "The label file holds {{ tandoor_labels_lines }}"
