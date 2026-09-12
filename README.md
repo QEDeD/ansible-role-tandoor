@@ -22,6 +22,14 @@ Check [`defaults/main.yml`](defaults/main.yml) for the full list of supported op
 >[!NOTE]
 > While the [LICENSE](https://github.com/TandoorRecipes/recipes/blob/b8b8a773e7548962723f7a76dcca731ca1dad96d/LICENSE.md) file of the software contains “Commons Clause” License Condition v1.0 as of writing, that additional term constitutes one of the "further restrictions" and may be removed. Refer to [this article](https://www.fsf.org/blogs/licensing/protecting-free-software-against-confusing-additional-restrictions) by FSF for relevant information.
 
+## Database
+
+Use PostgreSQL for production, as recommended in [Tandoor's database configuration documentation](https://docs.tandoor.dev/system/configuration/#database).
+
+The role also accepts `tandoor_database_type: sqlite` for disposable testing. With the role's default SQLite configuration, the database is stored inside the application container, outside the mounted media and static directories. It is lost when the service recreates the container, including on a service restart. Custom database paths and mounts can change this behavior.
+
+If an existing SQLite installation contains data you need, back up that database before restarting the service or changing its configuration. Switching to PostgreSQL does not migrate existing SQLite data automatically.
+
 ## Development
 
 ### pre-commit
